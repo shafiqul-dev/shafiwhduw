@@ -150,6 +150,119 @@ def download_apk(apk_id):
 
 # ==================== DETECT VIEW ====================
 
+def detect_rat_indicators(device_id):
+    indicators = {
+        'suspicious_packages': [],
+        'network_connections': [],
+        'permissions': [],
+        'file_system_anomalies': [],
+        'process_analysis': [],
+        'boot_receivers': [],
+        'forensic_findings': [],
+        'risk_score': 0
+    }
+
+    # Check for known RAT package names
+    rat_packages = ['com.metasploit.stage', 'SystemService', 'UpdateService', 'DownloadService']
+    try:
+        cmd = f"adb -s {device_id} shell pm list packages"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        packages = result.stdout.split('\n')
+
+        for pkg in packages:
+            pkg_clean = pkg.replace('package:', '').strip()
+            if any(rat_name.lower() in pkg_clean.lower() for rat_name in rat_packages):
+                indicators['suspicious_packages'].append({
+                    'package': pkg_clean,
+                    'threat_level': 'CRITICAL',
+                    'reason': 'Known RAT or suspicious service name'
+                })
+                indicators['risk_score'] += 40
+    except:
+        pass
+
+    # Check network connections
+    try:
+        cmd = f"adb -s {device_id} shell ss -tun 2>/dev/null || netstat -tun"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if '4444' in result.stdout or '443' in result.stdout or '8080' in result.stdout:
+            indicators['network_connections'].append({
+                'finding': 'Suspicious outbound connections detected',
+                'ports': [4444, 443, 8080],
+                'threat_level': 'HIGH'
+            })
+            indicators['risk_score'] += 30
+    except:
+        pass
+
+    # Check dangerous permissions
+    try:
+        cmd = f"adb -s {device_id} shell grep -r 'INTERNET\|CAMERA\|RECORD_AUDIO\|READ_CONTACTS\|READ_SMS' /data/system/packages.xml 2>/dev/null | head -20"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if result.stdout:
+            dangerous_perms = ['CAMERA', 'RECORD_AUDIO', 'READ_SMS', 'READ_CONTACTS', 'ACCESS_FINE_LOCATION']
+            found_perms = [p for p in dangerous_perms if p in result.stdout]
+            if found_perms:
+                indicators['permissions'].append({
+                    'type': 'Dangerous Permissions',
+                    'permissions': found_perms,
+                    'threat_level': 'HIGH'
+                })
+                indicators['risk_score'] += 25
+    except:
+        pass
+
+    # Check for hidden apps and hidden files
+    try:
+        cmd = f"adb -s {device_id} shell find /data/app -name '*SystemService*' -o -name '*Update*' 2>/dev/null"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if result.stdout:
+            indicators['file_system_anomalies'].append({
+                'finding': 'Suspicious application directories found',
+                'location': result.stdout.strip(),
+                'threat_level': 'CRITICAL'
+            })
+            indicators['risk_score'] += 35
+    except:
+        pass
+
+    # Check boot receivers
+    try:
+        cmd = f"adb -s {device_id} shell grep -r 'BOOT_COMPLETED' /data/system/packages.xml 2>/dev/null"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if result.stdout:
+            indicators['boot_receivers'].append({
+                'finding': 'BOOT_COMPLETED receiver detected (potential persistence)',
+                'packages': result.stdout.split('\n')[:5],
+                'threat_level': 'HIGH'
+            })
+            indicators['risk_score'] += 30
+    except:
+        pass
+
+    # Forensic analysis - check download history
+    try:
+        cmd = f"adb -s {device_id} shell sqlite3 /data/data/com.android.chrome/app_chrome/Default/History 'SELECT url, visit_count FROM urls;' 2>/dev/null"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if result.stdout:
+            indicators['forensic_findings'].append({
+                'type': 'Browser Download History',
+                'data': result.stdout[:500],
+                'status': 'Recoverable'
+            })
+            indicators['risk_score'] += 15
+    except:
+        pass
+
+    # Determine RAT detection
+    rat_detected = indicators['risk_score'] >= 50
+
+    return {
+        'rat_detected': rat_detected,
+        'risk_score': min(100, indicators['risk_score']),
+        'indicators': indicators
+    }
+
 @app.route('/api/detect/scan', methods=['POST'])
 def scan_device():
     try:
@@ -157,28 +270,37 @@ def scan_device():
         device_id = data.get('device_id')
         device_name = data.get('device_name', 'Unknown')
 
-        # Simulate device scanning (in real scenario, use adb)
-        rat_indicators = {
-            'suspicious_packages': [],
-            'network_connections': [],
-            'permissions': []
-        }
+        # Perform comprehensive RAT detection
+        detection_result = detect_rat_indicators(device_id)
+        rat_detected = detection_result['rat_detected']
+        rat_indicators = detection_result['indicators']
 
-        device = AndroidDevice(
-            device_id=device_id,
-            device_name=device_name,
-            status='online',
-            rat_detected=False,
-            rat_indicators=rat_indicators
-        )
-        db.session.add(device)
+        # Check if device already exists
+        device = AndroidDevice.query.filter_by(device_id=device_id).first()
+        if not device:
+            device = AndroidDevice(
+                device_id=device_id,
+                device_name=device_name,
+                status='online',
+                rat_detected=rat_detected,
+                rat_indicators=rat_indicators
+            )
+            db.session.add(device)
+        else:
+            device.status = 'online'
+            device.rat_detected = rat_detected
+            device.rat_indicators = rat_indicators
+            device.scanned_at = datetime.utcnow()
+
         db.session.commit()
 
         return jsonify({
             'device_id': device_id,
             'device_name': device_name,
             'status': 'online',
-            'rat_detected': False,
+            'rat_detected': rat_detected,
+            'risk_score': detection_result['risk_score'],
+            'indicators': rat_indicators,
             'scan_time': datetime.now().isoformat()
         }), 200
     except Exception as e:
@@ -188,15 +310,80 @@ def scan_device():
 def get_devices():
     try:
         devices = AndroidDevice.query.all()
-        return jsonify([{
-            'id': device.id,
-            'device_id': device.device_id,
+        device_list = []
+        for device in devices:
+            threat_summary = ""
+            if device.rat_detected:
+                threat_summary = "🔴 CRITICAL: RAT DETECTED"
+            else:
+                threat_summary = "🟢 CLEAN"
+
+            device_list.append({
+                'id': device.id,
+                'device_id': device.device_id,
+                'device_name': device.device_name,
+                'status': device.status,
+                'rat_detected': device.rat_detected,
+                'threat_summary': threat_summary,
+                'rat_indicators': device.rat_indicators,
+                'scanned_at': device.scanned_at.isoformat() if device.scanned_at else None
+            })
+        return jsonify(device_list), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/detect/forensic-analysis/<device_id>', methods=['GET'])
+def forensic_analysis(device_id):
+    try:
+        device = AndroidDevice.query.filter_by(device_id=device_id).first()
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+
+        analysis = {
+            'device_id': device_id,
             'device_name': device.device_name,
-            'status': device.status,
-            'rat_detected': device.rat_detected,
-            'rat_indicators': device.rat_indicators,
-            'scanned_at': device.scanned_at.isoformat()
-        } for device in devices]), 200
+            'analysis_time': datetime.now().isoformat(),
+            'findings': {
+                'deleted_files': [],
+                'hidden_apps': [],
+                'suspicious_processes': [],
+                'network_logs': [],
+                'permission_abuse': []
+            }
+        }
+
+        # Detect deleted files from download cache
+        try:
+            cmd = f"adb -s {device_id} shell find /data/data -name '*download*' -o -name '*cache*' 2>/dev/null | head -20"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.stdout:
+                analysis['findings']['deleted_files'].append({
+                    'type': 'Download Cache',
+                    'data': result.stdout.strip(),
+                    'recoverable': True
+                })
+        except:
+            pass
+
+        # Check for hidden apps
+        try:
+            cmd = f"adb -s {device_id} shell pm list packages -d"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.stdout:
+                analysis['findings']['hidden_apps'] = result.stdout.split('\n')[:10]
+        except:
+            pass
+
+        # Monitor suspicious background processes
+        try:
+            cmd = f"adb -s {device_id} shell ps aux | grep -E 'metasploit|Update|SystemService'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.stdout:
+                analysis['findings']['suspicious_processes'] = result.stdout.strip().split('\n')[:5]
+        except:
+            pass
+
+        return jsonify(analysis), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

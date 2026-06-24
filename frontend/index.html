@@ -405,6 +405,12 @@
                 <div id="scanner-loading" class="loading">⏳ Scanning device...</div>
             </div>
 
+            <!-- Scan Results -->
+            <div class="section" id="scan-results-section" style="display:none;">
+                <h2>📊 Scan Results</h2>
+                <div id="scan-results-content"></div>
+            </div>
+
             <!-- Scanned Devices -->
             <div class="section">
                 <h2>📱 Scanned Devices</h2>
@@ -412,17 +418,24 @@
                 <div id="devices-table-container"></div>
             </div>
 
-            <!-- RAT Indicators -->
+            <!-- Forensic Analysis -->
+            <div class="section" id="forensic-section" style="display:none;">
+                <h2>🔎 Forensic Analysis</h2>
+                <div id="forensic-content"></div>
+            </div>
+
+            <!-- RAT Indicators Guide -->
             <div class="section">
                 <h2>⚠️ RAT Detection Indicators</h2>
                 <div class="info-box">
                     <strong>What to look for:</strong>
                     <ul style="margin-left: 20px; margin-top: 10px;">
-                        <li>Suspicious package installations (com.metasploit.*)</li>
-                        <li>Unexpected network connections to attacker IP</li>
-                        <li>Permissions abuse (INTERNET, CAMERA, RECORD_AUDIO)</li>
-                        <li>Battery drain and unusual CPU usage</li>
-                        <li>Process monitoring anomalies</li>
+                        <li><strong>Suspicious Packages:</strong> com.metasploit.*, SystemService, UpdateService</li>
+                        <li><strong>Network Connections:</strong> Unusual outbound connections on ports 4444, 443, 8080</li>
+                        <li><strong>Dangerous Permissions:</strong> CAMERA, RECORD_AUDIO, READ_SMS, READ_CONTACTS, ACCESS_FINE_LOCATION</li>
+                        <li><strong>File System Anomalies:</strong> Hidden app directories in /data/app</li>
+                        <li><strong>Boot Receivers:</strong> BOOT_COMPLETED handlers (persistence indicators)</li>
+                        <li><strong>Forensic Findings:</strong> Recoverable download history and cached files</li>
                     </ul>
                 </div>
             </div>
@@ -651,7 +664,14 @@
                 });
 
                 const data = await res.json();
-                showAlert(alert, `✅ Scan completed for ${data.device_name}`, 'success');
+
+                if (data.rat_detected) {
+                    showAlert(alert, `🚨 RAT DETECTED! Risk Score: ${data.risk_score}/100`, 'error');
+                } else {
+                    showAlert(alert, `✅ Device Clean. Risk Score: ${data.risk_score}/100`, 'success');
+                }
+
+                displayScanResults(data, deviceId);
                 loadDevices();
             } catch (e) {
                 showAlert(alert, `❌ Error: ${e.message}`, 'error');
@@ -665,20 +685,22 @@
                 const res = await fetch(`${API_BASE}/detect/devices`);
                 const devices = await res.json();
 
-                let html = '<table><thead><tr><th>Device ID</th><th>Device Name</th><th>Status</th><th>RAT Detected</th><th>Scanned</th></tr></thead><tbody>';
+                let html = '<table><thead><tr><th>Device ID</th><th>Device Name</th><th>Status</th><th>Threat Status</th><th>Risk Score</th><th>Action</th></tr></thead><tbody>';
 
                 if (devices.length === 0) {
-                    html += '<tr><td colspan="5">No devices scanned yet</td></tr>';
+                    html += '<tr><td colspan="6">No devices scanned yet</td></tr>';
                 } else {
                     devices.forEach(device => {
-                        const date = new Date(device.scanned_at).toLocaleString();
-                        const ratStatus = device.rat_detected ? '<span class="attack-indicator">⚠️ YES</span>' : '<span class="success-indicator">✅ NO</span>';
+                        const date = device.scanned_at ? new Date(device.scanned_at).toLocaleString() : 'N/A';
+                        const riskScore = device.rat_indicators?.risk_score || 0;
+                        const threatStatus = device.threat_summary || (device.rat_detected ? '🔴 CRITICAL' : '🟢 CLEAN');
                         html += `<tr>
-                            <td>${device.device_id}</td>
+                            <td><code>${device.device_id}</code></td>
                             <td>${device.device_name}</td>
                             <td><span class="status ${device.status}">${device.status.toUpperCase()}</span></td>
-                            <td>${ratStatus}</td>
-                            <td>${date}</td>
+                            <td>${threatStatus}</td>
+                            <td><strong>${riskScore}/100</strong></td>
+                            <td><button onclick="showForensicAnalysis('${device.device_id}', '${device.device_name}')">🔍 Analyze</button></td>
                         </tr>`;
                     });
                 }
@@ -687,6 +709,113 @@
                 document.getElementById('devices-table-container').innerHTML = html;
             } catch (e) {
                 document.getElementById('devices-table-container').innerHTML = `<div class="alert error">Error loading devices: ${e.message}</div>`;
+            }
+        }
+
+        function displayScanResults(data, deviceId) {
+            const section = document.getElementById('scan-results-section');
+            let html = '';
+
+            const riskColor = data.risk_score >= 70 ? '#ff4444' : data.risk_score >= 40 ? '#ffaa00' : '#00ff41';
+
+            html += `<div style="border: 2px solid ${riskColor}; padding: 15px; margin-bottom: 15px; background: rgba(255, 68, 68, 0.1);">
+                <h3 style="color: ${riskColor};">Risk Score: ${data.risk_score}/100</h3>
+                <p>${data.rat_detected ? '<strong style="color:#ff4444">🚨 RAT DETECTED</strong>' : '<strong style="color:#00ff41">✅ CLEAN</strong>'}</p>
+            </div>`;
+
+            const indicators = data.indicators || {};
+
+            // Suspicious Packages
+            if (indicators.suspicious_packages && indicators.suspicious_packages.length > 0) {
+                html += '<h3 style="color: #ff4444; margin-top: 15px;">🚨 Suspicious Packages</h3>';
+                html += '<div class="code-block">';
+                indicators.suspicious_packages.forEach(pkg => {
+                    html += `<div>📦 ${pkg.package}<br/><small style="color: #ffaa00;">Threat: ${pkg.threat_level} - ${pkg.reason}</small></div>`;
+                });
+                html += '</div>';
+            }
+
+            // Network Connections
+            if (indicators.network_connections && indicators.network_connections.length > 0) {
+                html += '<h3 style="color: #ffaa00; margin-top: 15px;">🌐 Network Connections</h3>';
+                indicators.network_connections.forEach(conn => {
+                    html += `<div class="code-block">${conn.finding}<br/><small>Ports: ${conn.ports?.join(', ')}</small></div>`;
+                });
+            }
+
+            // Permissions
+            if (indicators.permissions && indicators.permissions.length > 0) {
+                html += '<h3 style="color: #ffaa00; margin-top: 15px;">⚠️ Dangerous Permissions</h3>';
+                indicators.permissions.forEach(perm => {
+                    html += `<div class="code-block">${perm.permissions?.join(', ')}</div>`;
+                });
+            }
+
+            // File System Anomalies
+            if (indicators.file_system_anomalies && indicators.file_system_anomalies.length > 0) {
+                html += '<h3 style="color: #ff4444; margin-top: 15px;">📁 File System Anomalies</h3>';
+                indicators.file_system_anomalies.forEach(anom => {
+                    html += `<div class="code-block">${anom.finding}<br/><small>${anom.location}</small></div>`;
+                });
+            }
+
+            // Boot Receivers
+            if (indicators.boot_receivers && indicators.boot_receivers.length > 0) {
+                html += '<h3 style="color: #ffaa00; margin-top: 15px;">🔄 Persistence Mechanisms (Boot Receivers)</h3>';
+                indicators.boot_receivers.forEach(boot => {
+                    html += `<div class="code-block">${boot.finding}</div>`;
+                });
+            }
+
+            document.getElementById('scan-results-content').innerHTML = html;
+            document.getElementById('scan-results-section').style.display = 'block';
+        }
+
+        async function showForensicAnalysis(deviceId, deviceName) {
+            const section = document.getElementById('forensic-section');
+            const content = document.getElementById('forensic-content');
+            content.innerHTML = '<p style="color: #ffaa00;">⏳ Analyzing device...</p>';
+            section.style.display = 'block';
+
+            try {
+                const res = await fetch(`${API_BASE}/detect/forensic-analysis/${deviceId}`);
+                const data = await res.json();
+
+                let html = `<h3>Forensic Analysis: ${deviceName}</h3><p style="font-size: 0.9em; color: #00aa00;">Time: ${data.analysis_time}</p>`;
+
+                const findings = data.findings || {};
+
+                // Deleted Files
+                if (findings.deleted_files && findings.deleted_files.length > 0) {
+                    html += '<h4 style="color: #ffaa00;">🗑️ Recoverable Deleted Files</h4>';
+                    findings.deleted_files.forEach(file => {
+                        html += `<div class="code-block"><small>${file.type}<br/>Status: ${file.recoverable ? '✅ Recoverable' : '❌ Unrecoverable'}<br/><code>${file.data}</code></small></div>`;
+                    });
+                }
+
+                // Hidden Apps
+                if (findings.hidden_apps && findings.hidden_apps.length > 0) {
+                    html += '<h4 style="color: #ffaa00;">🔒 Hidden/Disabled Apps</h4>';
+                    html += '<div class="code-block"><small>';
+                    findings.hidden_apps.forEach(app => {
+                        if (app) html += `${app}<br/>`;
+                    });
+                    html += '</small></div>';
+                }
+
+                // Suspicious Processes
+                if (findings.suspicious_processes && findings.suspicious_processes.length > 0) {
+                    html += '<h4 style="color: #ff4444;">⚙️ Suspicious Background Processes</h4>';
+                    html += '<div class="code-block"><small>';
+                    findings.suspicious_processes.forEach(proc => {
+                        if (proc) html += `${proc}<br/>`;
+                    });
+                    html += '</small></div>';
+                }
+
+                content.innerHTML = html;
+            } catch (e) {
+                content.innerHTML = `<div class="alert error">Error performing forensic analysis: ${e.message}</div>`;
             }
         }
 
